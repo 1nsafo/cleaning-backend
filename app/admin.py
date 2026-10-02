@@ -11,7 +11,8 @@ from app.config import Settings
 from app.models.cleaning_request import CleaningRequest
 
 STATUSES = {"new": "Новая", "in_progress": "В работе", "done": "Выполнена", "cancelled": "Отменена"}
-CLEANING_TYPES = {"maintenance": "Поддерживающая", "general": "Генеральная", "after_renovation": "После ремонта"}
+CLEANING_TYPES = {"maintenance": "Поддерживающая", "general": "Генеральная", "after_renovation": "После ремонта",
+                  "windows": "Мойка окон", "not_sure": "Не знает, нужна консультация"}
 CONTACT_METHODS = {"call": "Звонок", "message": "Сообщение"}
 
 

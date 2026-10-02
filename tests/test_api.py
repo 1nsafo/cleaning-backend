@@ -43,7 +43,7 @@ async def test_persists(setup):
 @pytest.mark.parametrize('patch', [
     {'phone': 'abc'}, {'phone': '+1 555 123 4567'},
     {'privacy_consent': False}, {'privacy_consent': 'true'},
-    {'cleaning_type': 'unknown'}, {'contact_method': 'unknown'},
+    {'cleaning_type': 'unknown'}, {'cleaning_type': 'Windows'}, {'contact_method': 'unknown'},
     {'comment': 'x' * 2001}, {'name': 'x' * 101}, {'status': 'done'},
 ])
 async def test_rejects_invalid_without_insert(setup, patch):
@@ -67,3 +67,11 @@ async def test_database_failure_rolls_back(setup):
     assert 'secret' not in response.text
     async with factory() as session:
         assert await session.scalar(select(func.count()).select_from(CleaningRequest)) == 0
+
+@pytest.mark.parametrize('cleaning_type', ['windows', 'not_sure'])
+async def test_accepts_new_cleaning_types(setup, cleaning_type):
+    client, factory, _ = setup
+    response = await client.post('/api/v1/requests', json={**PAYLOAD, 'cleaning_type': cleaning_type})
+    assert response.status_code == 201
+    async with factory() as session:
+        assert (await session.scalars(select(CleaningRequest))).one().cleaning_type == cleaning_type

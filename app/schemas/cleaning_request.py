@@ -8,6 +8,8 @@ class CleaningType(StrEnum):
     MAINTENANCE = "maintenance"
     GENERAL = "general"
     AFTER_RENOVATION = "after_renovation"
+    WINDOWS = "windows"
+    NOT_SURE = "not_sure"
 
 
 class ContactMethod(StrEnum):
