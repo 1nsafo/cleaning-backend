@@ -1,24 +1,24 @@
 services:
-  db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: cleaning
-      POSTGRES_DB: cleaning
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cleaning -d cleaning"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+  # db:
+  #   image: postgres:17-alpine
+  #   environment:
+  #     POSTGRES_USER: cleaning
+  #     POSTGRES_DB: cleaning
+  #     POSTGRES_PASSWORD: UI_2vSMDa7
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U cleaning -d cleaning"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
   migrate:
     build: .
     env_file: .env
     command: ["alembic", "upgrade", "head"]
-    depends_on:
-      db:
-        condition: service_healthy
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
   api:
     build: .
     env_file: .env
@@ -28,5 +28,6 @@ services:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
-volumes:
-  postgres_data:
+# volumes:
+#   postgres_data:
+#     external: true
