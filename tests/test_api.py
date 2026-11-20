@@ -9,6 +9,7 @@ from app.config import Settings
 from app.database import Base, get_session
 from app.main import create_app
 from app.models.cleaning_request import CleaningRequest
+from app.notifications import NotificationDeliveryError, NotificationDispatcher
 
 PAYLOAD = dict(phone='8 (900) 123-45-67', cleaning_type='maintenance', contact_method='call', privacy_consent=True)
 
@@ -18,7 +19,11 @@ async def setup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    app = create_app(Settings(database_url='postgresql+asyncpg://test:test@localhost/test'))
+    app = create_app(Settings(
+        database_url='postgresql+asyncpg://test:test@localhost/test',
+        telegram_bot_token='',
+        telegram_channel_id='',
+    ))
     async def session_override():
         async with factory() as session:
             yield session
@@ -55,6 +60,9 @@ async def test_rejects_invalid_without_insert(setup, patch):
 
 async def test_database_failure_rolls_back(setup):
     client, factory, app = setup
+    sender = AsyncMock()
+    app.state.notification_dispatcher = NotificationDispatcher([sender])
+
     async def broken_session():
         async with factory() as session:
             # Ошибка flush после добавления объекта: сервис должен откатить транзакцию.
@@ -65,8 +73,42 @@ async def test_database_failure_rolls_back(setup):
     response = await client.post('/api/v1/requests', json=PAYLOAD)
     assert response.status_code == 503
     assert 'secret' not in response.text
+    sender.send.assert_not_awaited()
     async with factory() as session:
         assert await session.scalar(select(func.count()).select_from(CleaningRequest)) == 0
+
+
+async def test_dispatches_after_commit_even_if_one_sender_fails(setup):
+    client, factory, app = setup
+    saved_request_ids = []
+
+    async def read_saved_request(_message):
+        async with factory() as session:
+            row = (await session.scalars(select(CleaningRequest))).one()
+            saved_request_ids.append(str(row.id))
+
+    failed_sender = AsyncMock()
+    failed_sender.send.side_effect = NotificationDeliveryError('Service unavailable')
+    working_sender = AsyncMock()
+    working_sender.send.side_effect = read_saved_request
+    app.state.notification_dispatcher = NotificationDispatcher([failed_sender, working_sender])
+
+    response = await client.post('/api/v1/requests', json={
+        **PAYLOAD, 'name': 'Евгений', 'comment': 'Позвоните после 18:00',
+    })
+
+    assert response.status_code == 201
+    assert saved_request_ids == [response.json()['id']]
+    failed_sender.send.assert_awaited_once()
+    working_sender.send.assert_awaited_once()
+    message, = working_sender.send.await_args.args
+    assert response.json()['id'] in message
+    assert 'Телефон: +79001234567' in message
+    assert 'Тип уборки: Поддерживающая' in message
+    assert 'Способ связи: Звонок' in message
+    assert 'Имя: Евгений' in message
+    assert 'Комментарий: Позвоните после 18:00' in message
+
 
 @pytest.mark.parametrize('cleaning_type', ['windows', 'not_sure'])
 async def test_accepts_new_cleaning_types(setup, cleaning_type):

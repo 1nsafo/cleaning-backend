@@ -9,11 +9,9 @@ from starlette.requests import Request
 from wtforms import SelectField
 from app.config import Settings
 from app.models.cleaning_request import CleaningRequest
+from app.schemas.cleaning_request import CLEANING_TYPE_LABELS, CONTACT_METHOD_LABELS
 
 STATUSES = {"new": "Новая", "in_progress": "В работе", "done": "Выполнена", "cancelled": "Отменена"}
-CLEANING_TYPES = {"maintenance": "Поддерживающая", "general": "Генеральная", "after_renovation": "После ремонта",
-                  "windows": "Мойка окон", "not_sure": "Не знает, нужна консультация"}
-CONTACT_METHODS = {"call": "Звонок", "message": "Сообщение"}
 
 
 class AdminAuth(AuthenticationBackend):
@@ -62,8 +60,8 @@ class CleaningRequestAdmin(ModelView, model=CleaningRequest):
     }
     column_formatters = {
         CleaningRequest.status: lambda m, a: STATUSES.get(m.status, m.status),
-        CleaningRequest.cleaning_type: lambda m, a: CLEANING_TYPES.get(m.cleaning_type, m.cleaning_type),
-        CleaningRequest.contact_method: lambda m, a: CONTACT_METHODS.get(m.contact_method, m.contact_method),
+        CleaningRequest.cleaning_type: lambda m, a: CLEANING_TYPE_LABELS.get(m.cleaning_type, m.cleaning_type),
+        CleaningRequest.contact_method: lambda m, a: CONTACT_METHOD_LABELS.get(m.contact_method, m.contact_method),
         CleaningRequest.created_at: lambda m, a: m.created_at.strftime("%d.%m.%Y %H:%M"),
     }
     column_formatters_detail = column_formatters
@@ -71,7 +69,7 @@ class CleaningRequestAdmin(ModelView, model=CleaningRequest):
     column_searchable_list = [CleaningRequest.phone, CleaningRequest.name]
     column_filters = [
         StaticValuesFilter(CleaningRequest.status, list(STATUSES.items()), title="Статус"),
-        StaticValuesFilter(CleaningRequest.cleaning_type, list(CLEANING_TYPES.items()), title="Тип уборки"),
+        StaticValuesFilter(CleaningRequest.cleaning_type, list(CLEANING_TYPE_LABELS.items()), title="Тип уборки"),
     ]
 
     # Менять можно только статус; данные клиента остаются как пришли с сайта.
