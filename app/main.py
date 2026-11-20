@@ -8,6 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.admin import setup_admin
 from app.config import Settings, get_settings
+from app.notifications import NotificationDispatcher, NotificationSender
+from app.notifications.telegram import TelegramNotificationSender
 from app.routers.cleaning_requests import router
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url="/openapi.json" if settings.docs_enabled else None,
     )
+    senders: list[NotificationSender] = []
+    if settings.telegram_bot_token and settings.telegram_channel_id:
+        senders.append(TelegramNotificationSender(settings.telegram_bot_token, settings.telegram_channel_id))
+    app.state.notification_dispatcher = NotificationDispatcher(senders)
+
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins,
         allow_methods=["POST"], allow_headers=["Content-Type"],

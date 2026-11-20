@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     admin_password: SecretStr | None = None
     admin_secret_key: SecretStr | None = None
     admin_secure_cookie: bool = True
+    telegram_bot_token: SecretStr | None = None
+    telegram_channel_id: str | None = None
 
     @property
     def admin_enabled(self) -> bool:

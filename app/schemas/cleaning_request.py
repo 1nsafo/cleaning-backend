@@ -17,6 +17,19 @@ class ContactMethod(StrEnum):
     MESSAGE = "message"
 
 
+CLEANING_TYPE_LABELS = {
+    CleaningType.MAINTENANCE: "Поддерживающая",
+    CleaningType.GENERAL: "Генеральная",
+    CleaningType.AFTER_RENOVATION: "После ремонта",
+    CleaningType.WINDOWS: "Мойка окон",
+    CleaningType.NOT_SURE: "Не знает, нужна консультация",
+}
+CONTACT_METHOD_LABELS = {
+    ContactMethod.CALL: "Звонок",
+    ContactMethod.MESSAGE: "Сообщение",
+}
+
+
 class CleaningRequestCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     phone: str = Field(min_length=5, max_length=32)
