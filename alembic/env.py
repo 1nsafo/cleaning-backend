@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.config import get_settings
 from app.database import Base
 from app.models.cleaning_request import CleaningRequest  # noqa: F401
+from app.models.review import Review  # noqa: F401
 
 target_metadata = Base.metadata
 
