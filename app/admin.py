@@ -9,6 +9,7 @@ from starlette.requests import Request
 from wtforms import SelectField
 from app.config import Settings
 from app.models.cleaning_request import CleaningRequest
+from app.models.review import Review
 from app.schemas.cleaning_request import CLEANING_TYPE_LABELS, CONTACT_METHOD_LABELS
 
 STATUSES = {"new": "Новая", "in_progress": "В работе", "done": "Выполнена", "cancelled": "Отменена"}
@@ -78,6 +79,30 @@ class CleaningRequestAdmin(ModelView, model=CleaningRequest):
     form_args = {"status": {"label": "Статус", "choices": list(STATUSES.items())}}
 
 
+class ReviewAdmin(ModelView, model=Review):
+    name = "Отзыв"
+    name_plural = "Отзывы"
+    icon = "fa-solid fa-star"
+    can_create = False
+    can_edit = False
+    can_delete = False
+    can_export = False
+    can_view_details = True
+
+    column_list = [Review.created_at, Review.name, Review.rating]
+    column_details_list = column_list + [Review.comment, Review.id]
+    column_labels = {
+        Review.created_at: "Дата публикации",
+        Review.name: "Имя",
+        Review.rating: "Оценка",
+        Review.comment: "Комментарий",
+        Review.id: "ID",
+    }
+    column_formatters = {Review.created_at: lambda m, a: m.created_at.strftime("%d.%m.%Y %H:%M")}
+    column_formatters_detail = column_formatters
+    column_default_sort = [(Review.created_at, True), (Review.id, True)]
+
+
 def setup_admin(app: FastAPI, session_factory: async_sessionmaker, settings: Settings) -> None:
     admin = Admin(
         app, session_maker=session_factory, title="Заявки на уборку",
@@ -85,3 +110,4 @@ def setup_admin(app: FastAPI, session_factory: async_sessionmaker, settings: Set
         i18n_config=I18nConfig(default_locale="ru", language_cookie_name=None, language_header_name=None),
     )
     admin.add_view(CleaningRequestAdmin)
+    admin.add_view(ReviewAdmin)

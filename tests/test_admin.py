@@ -7,6 +7,7 @@ from app.config import Settings
 from app.database import Base
 from app.main import create_app
 from app.models.cleaning_request import CleaningRequest
+from app.models.review import Review
 
 SETTINGS = Settings(
     _env_file=None,
@@ -23,6 +24,7 @@ async def admin():
     async with factory.begin() as session:
         session.add(CleaningRequest(phone='+79001234567', cleaning_type='general', contact_method='call',
                                     name='Евгений', privacy_consent=True))
+        session.add(Review(id=1, name='Анна', rating=5, comment='Отличная уборка!'))
     app = FastAPI()
     setup_admin(app, factory, SETTINGS)
     async with AsyncClient(transport=ASGITransport(app=app), base_url='https://test') as client:
@@ -62,6 +64,23 @@ async def test_updates_status(admin):
         updated = await session.get(CleaningRequest, row)
         assert updated.status == 'done'
         assert updated.phone == '+79001234567'
+
+async def test_reviews_are_read_only_after_login(admin):
+    client, _ = admin
+    assert (await client.get('/admin/review/list')).status_code == 302
+    assert (await client.get('/admin/review/details/1')).status_code == 302
+    await login(client)
+
+    response = await client.get('/admin/review/list')
+    assert response.status_code == 200
+    assert 'Отзывы' in response.text
+    assert 'Анна' in response.text
+    response = await client.get('/admin/review/details/1')
+    assert response.status_code == 200
+    assert 'Отличная уборка!' in response.text
+    assert (await client.get('/admin/review/edit/1')).status_code == 403
+    assert (await client.delete('/admin/review/delete', params={'pks': '1'})).status_code == 403
+
 
 def test_admin_disabled_without_credentials():
     app = create_app(Settings(_env_file=None, database_url='postgresql+asyncpg://test:test@localhost/test'))
