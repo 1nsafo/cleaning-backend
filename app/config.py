@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     database_url: PostgresDsn
     cors_origins: list[str] = []
     docs_enabled: bool = False
+    reviews_admin_token: SecretStr | None = None
     # Админка /admin включается, только если заданы пароль и секрет для cookie сессии.
     admin_username: str = "admin"
     admin_password: SecretStr | None = None
