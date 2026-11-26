@@ -7,6 +7,7 @@ from sqladmin.i18n import I18nConfig
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from starlette.requests import Request
 from wtforms import SelectField
+from wtforms.validators import Length, NumberRange
 from app.config import Settings
 from app.models.cleaning_request import CleaningRequest
 from app.models.review import Review
@@ -79,12 +80,16 @@ class CleaningRequestAdmin(ModelView, model=CleaningRequest):
     form_args = {"status": {"label": "Статус", "choices": list(STATUSES.items())}}
 
 
+def strip_review_text(value: str | None) -> str:
+    return (value or "").strip()
+
+
 class ReviewAdmin(ModelView, model=Review):
     name = "Отзыв"
     name_plural = "Отзывы"
     icon = "fa-solid fa-star"
-    can_create = False
-    can_edit = False
+    can_create = True
+    can_edit = True
     can_delete = False
     can_export = False
     can_view_details = True
@@ -101,6 +106,20 @@ class ReviewAdmin(ModelView, model=Review):
     column_formatters = {Review.created_at: lambda m, a: m.created_at.strftime("%d.%m.%Y %H:%M")}
     column_formatters_detail = column_formatters
     column_default_sort = [(Review.created_at, True), (Review.id, True)]
+    form_columns = [Review.name, Review.rating, Review.comment]
+    form_args = {
+        "name": {
+            "filters": [strip_review_text],
+            "validators": [Length(min=2, max=80, message="Введите имя длиной от 2 до 80 символов.")],
+        },
+        "rating": {
+            "validators": [NumberRange(min=1, max=5, message="Введите оценку от 1 до 5.")],
+        },
+        "comment": {
+            "filters": [strip_review_text],
+            "validators": [Length(min=10, max=2000, message="Введите текст длиной от 10 до 2000 символов.")],
+        },
+    }
 
 
 def setup_admin(app: FastAPI, session_factory: async_sessionmaker, settings: Settings) -> None:

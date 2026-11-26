@@ -1,6 +1,7 @@
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.admin import setup_admin
 from app.config import Settings
@@ -65,10 +66,12 @@ async def test_updates_status(admin):
         assert updated.status == 'done'
         assert updated.phone == '+79001234567'
 
-async def test_reviews_are_read_only_after_login(admin):
+async def test_reviews_require_login(admin):
     client, _ = admin
     assert (await client.get('/admin/review/list')).status_code == 302
     assert (await client.get('/admin/review/details/1')).status_code == 302
+    assert (await client.post('/admin/review/create')).status_code == 302
+    assert (await client.post('/admin/review/edit/1')).status_code == 302
     await login(client)
 
     response = await client.get('/admin/review/list')
@@ -78,8 +81,49 @@ async def test_reviews_are_read_only_after_login(admin):
     response = await client.get('/admin/review/details/1')
     assert response.status_code == 200
     assert 'Отличная уборка!' in response.text
-    assert (await client.get('/admin/review/edit/1')).status_code == 403
     assert (await client.delete('/admin/review/delete', params={'pks': '1'})).status_code == 403
+
+
+async def test_create_and_edit_review(admin):
+    client, factory = admin
+    await login(client)
+    assert (await client.get('/admin/review/create')).status_code == 200
+    created = await client.post('/admin/review/create', data={
+        'name': '  Олег  ', 'rating': '4', 'comment': '  Спасибо за уборку!  ',
+    })
+    assert created.status_code == 302
+    async with factory() as session:
+        review = await session.scalar(select(Review).where(Review.name == 'Олег'))
+        assert (review.rating, review.comment) == (4, 'Спасибо за уборку!')
+        review_id, created_at = review.id, review.created_at
+        assert created_at is not None
+
+    edit_url = f'/admin/review/edit/{review_id}'
+    assert (await client.get(edit_url)).status_code == 200
+    edited = await client.post(edit_url, data={
+        'name': 'Ольга', 'rating': '5', 'comment': 'Спасибо за отличную уборку!',
+        'created_at': '2000-01-01T00:00:00',
+    })
+    assert edited.status_code == 302
+    async with factory() as session:
+        review = await session.get(Review, review_id)
+        assert (review.name, review.rating, review.comment) == ('Ольга', 5, 'Спасибо за отличную уборку!')
+        assert review.created_at == created_at
+
+
+async def test_rejects_invalid_review_changes(admin):
+    client, factory = admin
+    await login(client)
+    created = await client.post('/admin/review/create', data={'rating': '5'})
+    assert created.status_code == 400
+    edited = await client.post('/admin/review/edit/1', data={
+        'name': '  ', 'rating': '6', 'comment': 'Коротко',
+    })
+    assert edited.status_code == 400
+    assert 'Введите оценку от 1 до 5.' in edited.text
+    async with factory() as session:
+        review = (await session.scalars(select(Review))).one()
+        assert (review.name, review.rating, review.comment) == ('Анна', 5, 'Отличная уборка!')
 
 
 def test_admin_disabled_without_credentials():
