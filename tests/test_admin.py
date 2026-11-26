@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -87,7 +89,9 @@ async def test_reviews_require_login(admin):
 async def test_create_and_edit_review(admin):
     client, factory = admin
     await login(client)
-    assert (await client.get('/admin/review/create')).status_code == 200
+    form = await client.get('/admin/review/create')
+    assert form.status_code == 200
+    assert 'name="created_at"' not in form.text
     created = await client.post('/admin/review/create', data={
         'name': '  Олег  ', 'rating': '4', 'comment': '  Спасибо за уборку!  ',
     })
@@ -99,7 +103,10 @@ async def test_create_and_edit_review(admin):
         assert created_at is not None
 
     edit_url = f'/admin/review/edit/{review_id}'
-    assert (await client.get(edit_url)).status_code == 200
+    form = await client.get(edit_url)
+    assert form.status_code == 200
+    assert 'name="created_at"' in form.text
+    assert created_at.strftime('%Y-%m-%d %H:%M:%S') in form.text
     edited = await client.post(edit_url, data={
         'name': 'Ольга', 'rating': '5', 'comment': 'Спасибо за отличную уборку!',
         'created_at': '2000-01-01T00:00:00',
@@ -108,7 +115,20 @@ async def test_create_and_edit_review(admin):
     async with factory() as session:
         review = await session.get(Review, review_id)
         assert (review.name, review.rating, review.comment) == ('Ольга', 5, 'Спасибо за отличную уборку!')
-        assert review.created_at == created_at
+        assert review.created_at == datetime(2000, 1, 1)
+
+    reviews = await client.get('/admin/review/list')
+    assert reviews.status_code == 200
+    assert reviews.text.index('Анна') < reviews.text.index('Ольга')
+
+    edited = await client.post(edit_url, data={
+        'name': 'Ольга', 'rating': '4', 'comment': 'Спасибо за отличную уборку!', 'created_at': '',
+    })
+    assert edited.status_code == 302
+    async with factory() as session:
+        review = await session.get(Review, review_id)
+        assert review.rating == 4
+        assert review.created_at == datetime(2000, 1, 1)
 
 
 async def test_rejects_invalid_review_changes(admin):
@@ -121,6 +141,10 @@ async def test_rejects_invalid_review_changes(admin):
     })
     assert edited.status_code == 400
     assert 'Введите оценку от 1 до 5.' in edited.text
+    edited = await client.post('/admin/review/edit/1', data={
+        'name': 'Анна', 'rating': '4', 'comment': 'Отличная уборка!', 'created_at': '2025-02-30T12:00',
+    })
+    assert edited.status_code == 400
     async with factory() as session:
         review = (await session.scalars(select(Review))).one()
         assert (review.name, review.rating, review.comment) == ('Анна', 5, 'Отличная уборка!')
